@@ -61,7 +61,6 @@ export function useSlotSubscribe(wsUrl: string, onSlot?: (slot: number) => void)
             jsonrpc: '2.0',
             id: requestId,
             method: 'slotSubscribe',
-            params: [{ commitment: 'processed' }],
           }),
         )
 
@@ -94,6 +93,13 @@ export function useSlotSubscribe(wsUrl: string, onSlot?: (slot: number) => void)
           message != null &&
           'id' in message
         ) {
+          const error = (message as { error?: { message?: string } }).error?.message
+          if (typeof error === 'string' && error.length > 0) {
+            setStatus((prev) => ({
+              ...prev,
+              lastError: error,
+            }))
+          }
           return
         }
 
