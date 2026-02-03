@@ -1,0 +1,9 @@
+pre-commit:
+  jobs:
+    - name: fast checks
+      run: node scripts/hook-pre-commit.mjs
+
+pre-push:
+  jobs:
+    - name: tests
+      run: node scripts/hook-pre-push.mjs

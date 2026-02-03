@@ -32,10 +32,16 @@ Open the app and (optionally) change the HTTP + WS URLs in the top panel.
 
 ## Repo guardrails
 
-This repo uses `pre-commit` with pre-commit + pre-push hooks. After cloning:
+This repo uses `lefthook` for `pre-commit` + `pre-push` hooks.
 
 ```bash
-pre-commit install --hook-type pre-commit --hook-type pre-push
+npm install
+```
+
+Hooks auto-install on `npm install` via `scripts/install-lefthook.mjs`. If you need to install manually:
+
+```bash
+npx lefthook install
 ```
 
 CI runs on GitHub Actions for pushes + PRs (`npm ci`, `npm run build`, plus lint/typecheck/test when present).
