@@ -16,7 +16,7 @@ type RpcStatus = {
 
 const HISTORY_MAX = 600
 
-const WS_STALE_MS = 5_000
+const WS_STALE_MS = 10_000
 const POLL_BASE_MS = 850
 const POLL_MAX_MS = 8_000
 
@@ -209,15 +209,8 @@ export function useCommitmentLadder(httpUrl: string, wsUrl: string) {
   )
 
   const status: RpcStatus = useMemo(() => {
-    if (wsStatus.state === 'disabled') {
-      return { badge: 'Degraded', detail: wsStatus.lastError ?? 'WebSocket disabled' }
-    }
-
-    const pollFresh = lastSlotPollSuccessAt != null && now - lastSlotPollSuccessAt < 5_000
-
-    if (wsFreshUi && pollFresh) {
-      return { badge: 'OK', detail: 'WebSocket + polling healthy' }
-    }
+    const pollFresh =
+      lastSlotPollSuccessAt != null && now - lastSlotPollSuccessAt < 5_000
 
     if (!pollFresh) {
       return {
@@ -226,26 +219,34 @@ export function useCommitmentLadder(httpUrl: string, wsUrl: string) {
       }
     }
 
-    const wsOutForMs =
-      wsStatus.state === 'connected'
-        ? wsStatus.lastMessageAt == null
-          ? now - wsStatus.since
-          : now - wsStatus.lastMessageAt
-        : now - wsStatus.since
-
-    if (wsOutForMs < 15_000) {
-      return { badge: 'Reconnecting', detail: 'WebSocket stale/reconnecting' }
+    if (wsFreshUi) {
+      return { badge: 'OK', detail: 'WebSocket + polling healthy' }
     }
 
-    return { badge: 'Degraded', detail: 'WebSocket down; polling-only mode' }
+    if (wsStatus.state === 'disabled') {
+      return {
+        badge: 'Degraded',
+        detail: wsStatus.lastError ?? 'WebSocket disabled; polling-only mode',
+      }
+    }
+
+    if (wsStatus.state === 'connecting' || wsStatus.state === 'reconnecting') {
+      return {
+        badge: 'Degraded',
+        detail: wsStatus.lastError ?? 'WebSocket reconnecting; polling-only mode',
+      }
+    }
+
+    return {
+      badge: 'Degraded',
+      detail: wsStatus.lastError ?? 'WebSocket stale; polling-only mode',
+    }
   }, [
     lastSlotPollErrorAt,
     lastSlotPollSuccessAt,
     now,
     wsFreshUi,
     wsStatus.lastError,
-    wsStatus.lastMessageAt,
-    wsStatus.since,
     wsStatus.state,
   ])
 
