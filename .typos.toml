@@ -1,0 +1,14 @@
+[files]
+extend-exclude = [
+  ".git/",
+  "target/",
+  "node_modules/",
+  "dist/",
+  "build/",
+]
+
+[default]
+# Avoid false-positives inside URLs.
+extend-ignore-re = [
+  "https?://[^\\s)]+",
+]
