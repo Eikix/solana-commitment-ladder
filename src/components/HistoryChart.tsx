@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react'
 import type { HistorySample } from '../types'
 
 type LaneKey = 'processed' | 'confirmed' | 'finalized'
@@ -8,11 +9,33 @@ type Lane = {
   color: string
 }
 
+type Props = {
+  samples: HistorySample[]
+}
+
 const LANES: Lane[] = [
   { key: 'processed', label: 'processed', color: '#a78bfa' },
   { key: 'confirmed', label: 'confirmed', color: '#60a5fa' },
   { key: 'finalized', label: 'finalized', color: '#34d399' },
 ]
+
+const CHART_WIDTH = 960
+const CHART_HEIGHT = 240
+const LANE_HEIGHT = CHART_HEIGHT / LANES.length
+const PAD_Y = 10
+
+function minMax(values: number[]): { min: number; max: number } {
+  let min = values[0]
+  let max = values[0]
+
+  for (let i = 1; i < values.length; i += 1) {
+    const v = values[i]
+    if (v < min) min = v
+    if (v > max) max = v
+  }
+
+  return { min, max }
+}
 
 function stepPath(
   values: number[],
@@ -23,16 +46,13 @@ function stepPath(
   const n = values.length
   if (n === 0) return ''
 
-  const min = Math.min(...values)
-  const max = Math.max(...values)
+  const { min, max } = minMax(values)
   const range = Math.max(1, max - min)
-
-  const padY = 10
+  const usable = laneHeight - PAD_Y * 2
 
   const yFor = (value: number) => {
     const normalized = (value - min) / range
-    const usable = laneHeight - padY * 2
-    return laneTop + padY + (1 - normalized) * usable
+    return laneTop + PAD_Y + (1 - normalized) * usable
   }
 
   const xFor = (i: number) => {
@@ -42,60 +62,79 @@ function stepPath(
 
   let d = ''
   let prevY = yFor(values[0])
-  d += `M ${xFor(0).toFixed(2)} ${prevY.toFixed(2)}`
+  d += `M ${xFor(0).toFixed(1)} ${prevY.toFixed(1)}`
 
   for (let i = 1; i < n; i += 1) {
     const x = xFor(i)
     const y = yFor(values[i])
-    d += ` L ${x.toFixed(2)} ${prevY.toFixed(2)} L ${x.toFixed(2)} ${y.toFixed(2)}`
+    d += ` L ${x.toFixed(1)} ${prevY.toFixed(1)} L ${x.toFixed(1)} ${y.toFixed(1)}`
     prevY = y
   }
 
   return d
 }
 
-export function HistoryChart({ samples }: { samples: HistorySample[] }) {
-  const width = 960
-  const height = 240
-  const laneHeight = height / LANES.length
+export const HistoryChart = memo(function HistoryChart({ samples }: Props) {
+  const computed = useMemo(() => {
+    const n = samples.length
+    if (n < 2) return null
 
-  if (samples.length < 2) {
-    return <div className="muted">Waiting for samples…</div>
-  }
+    const processed: number[] = new Array(n)
+    const confirmed: number[] = new Array(n)
+    const finalized: number[] = new Array(n)
 
-  const valuesForLane = (key: LaneKey) => samples.map((s) => s[key])
+    for (let i = 0; i < n; i += 1) {
+      const sample = samples[i]
+      processed[i] = sample.processed
+      confirmed[i] = sample.confirmed
+      finalized[i] = sample.finalized
+    }
+
+    const byKey: Record<LaneKey, number[]> = {
+      processed,
+      confirmed,
+      finalized,
+    }
+
+    return LANES.map((lane, i) => {
+      const top = i * LANE_HEIGHT
+      return {
+        ...lane,
+        top,
+        labelY: top + 16,
+        d: stepPath(byKey[lane.key], CHART_WIDTH, top, LANE_HEIGHT),
+      }
+    })
+  }, [samples])
+
+  if (computed == null) return <div className="muted">Waiting for samples…</div>
 
   return (
     <div>
       <div className="chartWrap">
         <svg
-          viewBox={`0 0 ${width} ${height}`}
+          viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
           width="100%"
           height="240"
           role="img"
           aria-label="Recent slot heads by commitment"
         >
-          {LANES.map((lane, i) => {
-            const top = i * laneHeight
-            const values = valuesForLane(lane.key)
-            const d = stepPath(values, width, top, laneHeight)
-            const labelY = top + 16
-
+          {computed.map((lane, i) => {
             return (
               <g key={lane.key}>
                 <rect
                   x="0"
-                  y={top}
-                  width={width}
-                  height={laneHeight}
+                  y={lane.top}
+                  width={CHART_WIDTH}
+                  height={LANE_HEIGHT}
                   fill="transparent"
                 />
                 {i === 0 ? null : (
                   <line
                     x1="0"
-                    y1={top}
-                    x2={width}
-                    y2={top}
+                    y1={lane.top}
+                    x2={CHART_WIDTH}
+                    y2={lane.top}
                     stroke="currentColor"
                     opacity="0.12"
                     strokeWidth="1"
@@ -103,7 +142,7 @@ export function HistoryChart({ samples }: { samples: HistorySample[] }) {
                 )}
                 <text
                   x="12"
-                  y={labelY}
+                  y={lane.labelY}
                   fontSize="12"
                   fill="currentColor"
                   opacity="0.66"
@@ -112,7 +151,7 @@ export function HistoryChart({ samples }: { samples: HistorySample[] }) {
                   {lane.label}
                 </text>
                 <path
-                  d={d}
+                  d={lane.d}
                   fill="none"
                   stroke={lane.color}
                   strokeWidth="2"
@@ -137,4 +176,4 @@ export function HistoryChart({ samples }: { samples: HistorySample[] }) {
       </div>
     </div>
   )
-}
+})
